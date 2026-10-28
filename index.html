@@ -1,0 +1,637 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Stock - Ferretería</title>
+
+<style>
+:root {
+    --rojo: #dc3545;
+    --amarillo: #ffc107;
+    --verde: #28a745;
+    --azul: #174ea6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f1f4f8;
+    margin: 0;
+    padding: 20px;
+    color: #263238;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 3px 14px #00000012;
+}
+
+h1, h2 { text-align: center; }
+
+h1 { color: #174ea6; }
+
+.form-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+input {
+    min-width: 0;
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+button {
+    padding: 11px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    background: var(--verde);
+    color: white;
+}
+
+button:hover { filter: brightness(.92); }
+
+.admin-button { background: #263238; }
+.blue-button { background: var(--azul); }
+.red-button { background: var(--rojo); }
+.gray-button { background: #64748b; }
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.stat {
+    text-align: center;
+    padding: 15px 8px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.stat strong {
+    display: block;
+    font-size: 25px;
+    margin-top: 6px;
+}
+
+.table-wrapper { overflow-x: auto; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+th { background: #edf2f7; }
+
+tr.stock-rojo { background: #fee2e2; }
+tr.stock-amarillo { background: #fef3c7; }
+tr.stock-verde { background: #dcfce7; }
+
+.estado {
+    display: inline-block;
+    font-weight: bold;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.estado-rojo { background: #fecaca; color: #991b1b; }
+.estado-amarillo { background: #fde68a; color: #92400e; }
+.estado-verde { background: #bbf7d0; color: #166534; }
+
+.delete-btn { background: var(--rojo); }
+
+.hidden { display: none !important; }
+
+.panel {
+    border: 2px solid #263238;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.timer {
+    font-size: clamp(38px, 9vw, 60px);
+    font-weight: bold;
+    text-align: center;
+    margin: 20px 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.timer-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+
+.timer-config {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.timer-config input { max-width: 130px; }
+
+.mensaje {
+    text-align: center;
+    min-height: 24px;
+    font-weight: bold;
+}
+
+@media (max-width: 600px) {
+    body { padding: 10px; }
+    .container { padding: 14px; }
+    .stats { gap: 6px; }
+    .stat { font-size: 12px; }
+    .stat strong { font-size: 21px; }
+    th, td { padding: 9px; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>🛒 Control de Stock</h1>
+
+    <div class="stats">
+        <div class="stat">
+            Productos
+            <strong id="totalProductos">0</strong>
+        </div>
+        <div class="stat">
+            Stock crítico
+            <strong id="stockCritico" style="color:#dc3545">0</strong>
+        </div>
+        <div class="stat">
+            Stock bajo
+            <strong id="stockBajo" style="color:#b77900">0</strong>
+        </div>
+    </div>
+
+    <h2>Agregar producto</h2>
+
+    <form class="form-group" id="stockForm">
+        <input
+            type="number"
+            id="unidades"
+            placeholder="Unidades"
+            required min="0" step="1">
+
+        <input
+            type="text"
+            id="detalle"
+            placeholder="Detalle del producto"
+            required maxlength="150">
+
+        <input
+            type="number"
+            id="precio"
+            placeholder="Precio ($)"
+            required min="0" step="0.01">
+
+        <button type="submit">Agregar producto</button>
+    </form>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Unidades</th>
+                    <th>Detalle</th>
+                    <th>Precio</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <p>
+        <span class="estado estado-rojo">● Crítico: 0–5</span>
+        <span class="estado estado-amarillo">● Bajo: 6–10</span>
+        <span class="estado estado-verde">● Suficiente: 11+</span>
+    </p>
+
+    <hr>
+
+    <button class="admin-button" id="abrirAdmin">
+        🔐 Acceso Superadmin
+    </button>
+
+    <section id="loginPanel" class="panel hidden">
+        <h2>Acceso administrativo</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <input
+                    type="password"
+                    id="adminPassword"
+                    placeholder="Contraseña Superadmin"
+                    required>
+                <button type="submit" class="admin-button">
+                    Ingresar
+                </button>
+                <button type="button" class="gray-button"
+                    id="cancelarLogin">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+        <p id="loginMensaje" class="mensaje"></p>
+    </section>
+
+    <section id="adminPanel" class="panel hidden">
+        <h2>⚙️ Panel Superadmin</h2>
+        <p>Herramientas administrativas y temporizador.</p>
+
+        <hr>
+
+        <h3 style="text-align:center">⏱️ Temporizador</h3>
+
+        <div class="timer-config">
+            <label>
+                Minutos
+                <input type="number" id="minutos"
+                    min="0" max="999" value="5">
+            </label>
+            <label>
+                Segundos
+                <input type="number" id="segundos"
+                    min="0" max="59" value="0">
+            </label>
+            <button id="configurarTimer" class="blue-button">
+                Configurar
+            </button>
+        </div>
+
+        <div id="timerDisplay" class="timer">05:00</div>
+
+        <div class="timer-controls">
+            <button id="iniciarTimer">▶ Iniciar</button>
+            <button id="pausarTimer" class="gray-button">
+                ⏸ Pausar
+            </button>
+            <button id="reiniciarTimer" class="red-button">
+                ↺ Reiniciar
+            </button>
+        </div>
+
+        <p id="timerMensaje" class="mensaje"></p>
+
+        <hr>
+
+        <h3>Administración</h3>
+        <p>Desde esta sección podés cerrar la sesión administrativa.</p>
+        <button id="cerrarAdmin" class="admin-button">
+            Cerrar sesión Superadmin
+        </button>
+    </section>
+
+</div>
+
+<script>
+const form = document.getElementById('stockForm');
+const tableBody = document.getElementById('tableBody');
+
+const STORAGE_KEY = 'ferreteriaStock';
+
+let inventario = cargarInventario();
+
+function cargarInventario() {
+    try {
+        const datos = JSON.parse(
+            localStorage.getItem(STORAGE_KEY) || '[]'
+        );
+
+        if (!Array.isArray(datos)) return [];
+
+        return datos.filter(item =>
+            item &&
+            Number.isInteger(Number(item.unidades)) &&
+            Number(item.unidades) >= 0 &&
+            Number.isFinite(Number(item.precio)) &&
+            Number(item.precio) >= 0 &&
+            typeof item.detalle === 'string'
+        ).map(item => ({
+            unidades: Number(item.unidades),
+            detalle: item.detalle,
+            precio: Number(item.precio)
+        }));
+    } catch {
+        return [];
+    }
+}
+
+function guardarInventario() {
+    try {
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(inventario)
+        );
+    } catch {
+        alert('No se pudo guardar. Revisá el almacenamiento del navegador.');
+    }
+}
+
+function obtenerEstado(unidades) {
+    if (unidades < 6) {
+        return {
+            fila: 'stock-rojo',
+            etiqueta: 'Crítico',
+            clase: 'estado-rojo'
+        };
+    }
+
+    if (unidades < 11) {
+        return {
+            fila: 'stock-amarillo',
+            etiqueta: 'Stock bajo',
+            clase: 'estado-amarillo'
+        };
+    }
+
+    return {
+        fila: 'stock-verde',
+        etiqueta: 'Suficiente',
+        clase: 'estado-verde'
+    };
+}
+
+function renderTable() {
+    tableBody.replaceChildren();
+
+    let criticos = 0;
+    let bajos = 0;
+
+    inventario.forEach((item, index) => {
+        const estado = obtenerEstado(item.unidades);
+
+        if (item.unidades < 6) criticos++;
+        else if (item.unidades < 11) bajos++;
+
+        const row = document.createElement('tr');
+        row.className = estado.fila;
+
+        const celdaUnidades = document.createElement('td');
+        celdaUnidades.textContent = item.unidades;
+
+        const celdaDetalle = document.createElement('td');
+        celdaDetalle.textContent = item.detalle;
+
+        const celdaPrecio = document.createElement('td');
+        celdaPrecio.textContent = item.precio.toLocaleString(
+            'es-AR',
+            { style: 'currency', currency: 'ARS' }
+        );
+
+        const celdaEstado = document.createElement('td');
+        const etiqueta = document.createElement('span');
+        etiqueta.className = 'estado ' + estado.clase;
+        etiqueta.textContent = estado.etiqueta;
+        celdaEstado.appendChild(etiqueta);
+
+        const celdaAccion = document.createElement('td');
+        const boton = document.createElement('button');
+        boton.className = 'delete-btn';
+        boton.textContent = 'Borrar';
+
+        boton.addEventListener('click', () => {
+            if (confirm(
+                '¿Querés eliminar el producto "' +
+                item.detalle + '"?'
+            )) {
+                inventario.splice(index, 1);
+                guardarInventario();
+                renderTable();
+            }
+        });
+
+        celdaAccion.appendChild(boton);
+
+        row.append(
+            celdaUnidades,
+            celdaDetalle,
+            celdaPrecio,
+            celdaEstado,
+            celdaAccion
+        );
+
+        tableBody.appendChild(row);
+    });
+
+    document.getElementById('totalProductos').textContent =
+        inventario.length;
+
+    document.getElementById('stockCritico').textContent =
+        criticos;
+
+    document.getElementById('stockBajo').textContent =
+        bajos;
+}
+
+form.addEventListener('submit', event => {
+    event.preventDefault();
+
+    const unidades = Number(
+        document.getElementById('unidades').value
+    );
+    const detalle = document.getElementById('detalle')
+        .value.trim();
+    const precio = Number(
+        document.getElementById('precio').value
+    );
+
+    if (
+        !Number.isInteger(unidades) ||
+        unidades < 0 ||
+        !detalle ||
+        !Number.isFinite(precio) ||
+        precio < 0
+    ) {
+        alert('Ingresá unidades, detalle y precio válidos.');
+        return;
+    }
+
+    inventario.push({ unidades, detalle, precio });
+    guardarInventario();
+    form.reset();
+    renderTable();
+});
+
+// Acceso Superadmin de demostración.
+// No es autenticación segura para producción.
+const ADMIN_PASSWORD = 'admin123';
+
+const loginPanel = document.getElementById('loginPanel');
+const adminPanel = document.getElementById('adminPanel');
+
+document.getElementById('abrirAdmin').addEventListener('click', () => {
+    loginPanel.classList.remove('hidden');
+    document.getElementById('adminPassword').focus();
+});
+
+document.getElementById('cancelarLogin').addEventListener('click', () => {
+    loginPanel.classList.add('hidden');
+    document.getElementById('loginMensaje').textContent = '';
+});
+
+document.getElementById('loginForm').addEventListener('submit', event => {
+    event.preventDefault();
+
+    const password = document.getElementById('adminPassword').value;
+    const mensaje = document.getElementById('loginMensaje');
+
+    if (password === ADMIN_PASSWORD) {
+        loginPanel.classList.add('hidden');
+        adminPanel.classList.remove('hidden');
+        document.getElementById('adminPassword').value = '';
+        mensaje.textContent = '';
+    } else {
+        mensaje.textContent = 'Contraseña incorrecta.';
+        mensaje.style.color = '#dc3545';
+    }
+});
+
+document.getElementById('cerrarAdmin').addEventListener('click', () => {
+    pausarTimer();
+    adminPanel.classList.add('hidden');
+    loginPanel.classList.add('hidden');
+});
+
+// Temporizador
+let duracionInicial = 300;
+let tiempoRestante = duracionInicial;
+let intervalo = null;
+let finTemporizador = null;
+
+function mostrarTiempo() {
+    const minutos = Math.floor(tiempoRestante / 60);
+    const segundos = tiempoRestante % 60;
+
+    document.getElementById('timerDisplay').textContent =
+        String(minutos).padStart(2, '0') + ':' +
+        String(segundos).padStart(2, '0');
+}
+
+function detenerIntervalo() {
+    if (intervalo !== null) {
+        clearInterval(intervalo);
+        intervalo = null;
+    }
+
+    finTemporizador = null;
+}
+
+function actualizarTimer() {
+    if (finTemporizador === null) return;
+
+    tiempoRestante = Math.max(
+        0,
+        Math.ceil((finTemporizador - Date.now()) / 1000)
+    );
+
+    mostrarTiempo();
+
+    if (tiempoRestante <= 0) {
+        detenerIntervalo();
+        document.getElementById('timerMensaje').textContent =
+            '⏰ ¡Tiempo finalizado!';
+        alert('¡El temporizador ha finalizado!');
+    }
+}
+
+function iniciarTimer() {
+    if (intervalo !== null) return;
+
+    if (tiempoRestante <= 0) {
+        document.getElementById('timerMensaje').textContent =
+            'Configurá o reiniciá el temporizador.';
+        return;
+    }
+
+    document.getElementById('timerMensaje').textContent = '';
+    finTemporizador = Date.now() + tiempoRestante * 1000;
+
+    intervalo = setInterval(actualizarTimer, 200);
+}
+
+function pausarTimer() {
+    if (intervalo !== null) {
+        actualizarTimer();
+        detenerIntervalo();
+    }
+}
+
+function reiniciarTimer() {
+    detenerIntervalo();
+    tiempoRestante = duracionInicial;
+    document.getElementById('timerMensaje').textContent = '';
+    mostrarTiempo();
+}
+
+document.getElementById('configurarTimer').addEventListener('click', () => {
+    const minutos = Number(document.getElementById('minutos').value);
+    const segundos = Number(document.getElementById('segundos').value);
+
+    if (
+        !Number.isInteger(minutos) ||
+        !Number.isInteger(segundos) ||
+        minutos < 0 || minutos > 999 ||
+        segundos < 0 || segundos > 59 ||
+        minutos * 60 + segundos <= 0
+    ) {
+        alert('Ingresá una duración válida mayor que cero.');
+        return;
+    }
+
+    detenerIntervalo();
+    duracionInicial = minutos * 60 + segundos;
+    tiempoRestante = duracionInicial;
+    document.getElementById('timerMensaje').textContent = '';
+    mostrarTiempo();
+});
+
+document.getElementById('iniciarTimer')
+    .addEventListener('click', iniciarTimer);
+
+document.getElementById('pausarTimer')
+    .addEventListener('click', pausarTimer);
+
+document.getElementById('reiniciarTimer')
+    .addEventListener('click', reiniciarTimer);
+
+renderTable();
+mostrarTiempo();
+</script>
+</body>
+</html>
